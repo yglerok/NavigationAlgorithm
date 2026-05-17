@@ -6,39 +6,38 @@
 #include <vector>
 #include <string>
 
-double U = 7.272e-5;	// Угловая скорость вращения Земли рад/с
+#ifdef _WIN32
+	#define popen _popen
+    #define pclose _pclose
+#endif
+
+double U = 7.272e-5;
 const double d_time = 0.00500;
 
 const double rad2Deg = 180 / 3.14159265358979323846;
 const double deg2Rad = 3.14159265358979323846 / 180;
 
-// Начальные координаты
 double fi = 56.0000037975 * deg2Rad;
 double lam = 36.9999992699 * deg2Rad;
 double h = 101.455;
 
-// Земные константы
-double a = 6378137.0; // equatorial radius (meters)
-double e2 = 0.00669437999014; // eccentricity squared
-//double e = sqrt(e2);
-double Re = a; // Use 'a' as the reference radius
-double g = 9.81; // Match Python's g value
+double a = 6378137.0; 
+double e2 = 0.00669437999014;
+double Re = a; 
+double g = 9.81; 
 
 
-// Данные от БЧЭ
-double f_b[3]; /*{0.0, U * cos(fi), U * sin(fi)};*/
+double f_b[3];
 double w_b[3];
 
-// Матрица направляющих косинусов
 double Cb_ll[9] = { 1, 0, 0,
 					0, 1, 0,
 					0, 0, 1 };
 
 
-// Рассчитанные данные
 struct Data {
 	double v_ll[3] = { 0.0, 0.0, 0 }; // Ve, Vn, Vup
-	double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw | крен, тангаж, курс
+	double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw 
 	double coords[3] = { fi, lam, h };
 
 	double f_ll[3] = { 0, 0, 0 };
@@ -72,7 +71,7 @@ struct GraphData {
 
 void initGnuplot(FILE*& gp)
 {
-	gp = _popen("gnuplot -persist", "w");
+	gp = popen("gnuplot -persist", "w");
 	if (!gp) {
 		std::cerr << "Cannot open gnuplot. Make sure it's installed and in PATH" << std::endl;
 		exit(-1);
@@ -81,14 +80,14 @@ void initGnuplot(FILE*& gp)
 	fprintf(gp, "set terminal qt size 1400,1000\n");
 	fprintf(gp, "set multiplot layout 4,2\n");
 	fprintf(gp, "set style data lines\n");
-	fprintf(gp, "set grid\n");  // Включаем сетку
-	fprintf(gp, "set autoscale\n");  // Автоматическая настройка масштаба
+	fprintf(gp, "set grid\n");  
+	fprintf(gp, "set autoscale\n");  
 }
 
 void closeGnuplot(FILE*& gp)
 {
 	fprintf(gp, "unset multiplot\n");
-	_pclose(gp);
+	pclose(gp);
 }
 
 void drawParam(FILE* gp, std::string title, const std::vector<double>& etParam, const std::vector<double>& calcParam, const std::vector<double>& time)
@@ -98,7 +97,6 @@ void drawParam(FILE* gp, std::string title, const std::vector<double>& etParam, 
 	std::string calcBlock = "$calc" + std::to_string(counter);
 	counter++;
 
-	// Записываем данные в datablocks
 	fprintf(gp, "%s << EOD\n", etBlock.c_str());
 	for (size_t i = 0; i < etParam.size(); ++i) {
 		fprintf(gp, "%lf %lf\n", time[i], etParam[i]);
@@ -111,7 +109,6 @@ void drawParam(FILE* gp, std::string title, const std::vector<double>& etParam, 
 	}
 	fprintf(gp, "EOD\n");
 
-	// Настраиваем график
 	fprintf(gp, "set title '%s'\n", title.c_str());
 	fprintf(gp, "set xlabel 'time'\n");
 	fprintf(gp, "set ylabel 'deg'\n");
@@ -126,16 +123,16 @@ void drawGraphs(const GraphData& etalon, const GraphData& calc)
 
 	initGnuplot(gp);
 
-	drawParam(gp, "Roll", etalon.roll, calc.roll, etalon.time); // Крен
-	drawParam(gp, "Pitch", etalon.pitch, calc.pitch, etalon.time); // Курс
-	drawParam(gp, "Yaw", etalon.yaw, calc.yaw, etalon.time); // Тангаж
-	drawParam(gp, "Latitude", etalon.fi, calc.fi, etalon.time); // Широта
-	drawParam(gp, "Longitude", etalon.lam, calc.lam, etalon.time); // Долгота
-	drawParam(gp, "Altitude", etalon.h, calc.h, etalon.time); // Высота
-	drawParam(gp, "V_e", etalon.v_e, calc.v_e, etalon.time); // Восточная составляющая лин скорости
-	drawParam(gp, "V_n", etalon.v_n, calc.v_n, etalon.time); // Северная составляющая лин скорости
+	drawParam(gp, "Roll", etalon.roll, calc.roll, etalon.time); 
+	drawParam(gp, "Pitch", etalon.pitch, calc.pitch, etalon.time); 
+	drawParam(gp, "Yaw", etalon.yaw, calc.yaw, etalon.time); 
+	drawParam(gp, "Latitude", etalon.fi, calc.fi, etalon.time); 
+	drawParam(gp, "Longitude", etalon.lam, calc.lam, etalon.time); 
+	drawParam(gp, "Altitude", etalon.h, calc.h, etalon.time); 
+	drawParam(gp, "V_e", etalon.v_e, calc.v_e, etalon.time); 
+	drawParam(gp, "V_n", etalon.v_n, calc.v_n, etalon.time); 
 
-	_pclose(gp);
+	closeGnuplot(gp);
 }
 
 void toLL(const double* f_b, double* f_ll, const double* Cb_ll)
@@ -155,10 +152,8 @@ void mxMpy(const double* A, const double* B, double* C)
 void updateRadii(double& R_fi, double& R_lam, const double& sin_fi)
 {
 	double denom = sqrt(1 - e2 * sin_fi * sin_fi);
-	// Python: RE = a / denom  -> This is R_lam (East-West radius)
-	// Python: RN = a * (1 - e2) / (denom**3)  -> This is R_fi (North-South radius)
-	R_lam = a / denom;  // RE in Python
-	R_fi = a * (1 - e2) / (denom * denom * denom);  // RN in Python
+	R_lam = a / denom; 
+	R_fi = a * (1 - e2) / (denom * denom * denom); 
 }
 
 void calcPoissonEquation(const double* w_ig)
@@ -171,8 +166,8 @@ void calcPoissonEquation(const double* w_ig)
 						-w_ig[1], w_ig[0], 0 };
 
 	double firstSummand[9], secondSummand[9];
-	mxMpy(Cb_ll, w_b_mat, firstSummand);  // C @ Omega_b
-	mxMpy(w_ig_mat, Cb_ll, secondSummand);  // Omega_g @ C  (note: order reversed from yours!)
+	mxMpy(Cb_ll, w_b_mat, firstSummand); 
+	mxMpy(w_ig_mat, Cb_ll, secondSummand); 
 
 	for (int i = 0; i < 9; ++i)
 		Cb_ll[i] += (firstSummand[i] - secondSummand[i]) * d_time;
@@ -183,11 +178,10 @@ void calcRpy(const double* Cb_ll, double* rpy)
 	double val = Cb_ll[6];
 	val = fmax(-1.0, fmin(1.0, val));
 
-	rpy[1] = atan2(Cb_ll[7], Cb_ll[8]) * rad2Deg;
-	rpy[0] = -asin(val) * rad2Deg;
-	rpy[2] = atan2(Cb_ll[3], Cb_ll[0]) * rad2Deg;
+	rpy[1] = atan2(Cb_ll[7], Cb_ll[8]) * rad2Deg; 	// pitch
+	rpy[0] = -asin(val) * rad2Deg;					// roll
+	rpy[2] = atan2(Cb_ll[3], Cb_ll[0]) * rad2Deg;	// yaw
 
-	// Пересчет курса
 	rpy[2] = std::fmod(rpy[2] + 360.0, 360) * -1 + 360;
 }
 
@@ -196,7 +190,6 @@ void navigationAlgorithm(double* v_ll, double* rpy, double* coords)
 	double f_ll[3] = { 0, 0, 0 };
 	double w_ll[3] = { 0, 0, 0 };
 
-	// Расчет линейных и угловых скоростей корекции положения в LL
 	double sin_fi = sin(coords[0]);
 	double cos_fi = cos(coords[0]);
 
@@ -214,34 +207,23 @@ void navigationAlgorithm(double* v_ll, double* rpy, double* coords)
 	for (int i = 0; i < 3; ++i)
 		w_ig[i] = w_ie[i] + w_eg[i];
 
-	// Уравнение Пуассона
 	calcPoissonEquation(w_ig);
 	calcRpy(Cb_ll, rpy);
 
-	// Пересчет ускорений в LL
 	toLL(f_b, f_ll, Cb_ll);
 
-	// Кориолисово ускорение
 	double cor[3];
 	cor[0] = (2 * w_ie[1] + w_eg[1]) * v_ll[2] - (2 * w_ie[2] + w_eg[2]) * v_ll[1];
 	cor[1] = (2 * w_ie[2] + w_eg[2]) * v_ll[0] - (2 * w_ie[0] + w_eg[0]) * v_ll[2];
 	cor[2] = (2 * w_ie[0] + w_eg[0]) * v_ll[1] - (2 * w_ie[1] + w_eg[1]) * v_ll[0];
 
-	// Update velocities: V_dot = f_g - [0,0,g] - cor
 	v_ll[0] += (f_ll[0] - cor[0]) * d_time;
 	v_ll[1] += (f_ll[1] - cor[1]) * d_time;
 	v_ll[2] += (f_ll[2] - 9.81 - cor[2]) * d_time;
 
-	// Расчет навигационных параметров
 	coords[0] += (v_ll[1] / (R_fi + coords[2])) * d_time;
 	coords[1] += (v_ll[0] / ((R_lam + coords[2]) * cos_fi)) * d_time;
 
-}
-
-void debugPrint(const double* mas, int size)
-{
-	for (int i = 0; i < size; ++i)
-		std::cout << std::setprecision(10) << mas[i] << "\t";
 }
 
 void saveData(GraphData& data, double time, double* rpy, double* v_ll, double* coords)
@@ -273,7 +255,7 @@ int main()
 	while (!in.eof()) {
 		double time;
 		double v_ll[3] = { 0.0, 0.0, 0 }; // Ve, Vn, Vup
-		double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw | крен, тангаж, курс
+		double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw
 		double coords[3] = { fi, lam, h };
 
 		in >> time;
@@ -297,5 +279,4 @@ int main()
 
 	std::cout << "end";
 	drawGraphs(etalon, calc);
-	//closeGnuplot(gp);
 }
