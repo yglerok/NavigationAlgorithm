@@ -34,16 +34,6 @@ double Cb_ll[9] = { 1, 0, 0,
 					0, 1, 0,
 					0, 0, 1 };
 
-
-struct Data {
-	double v_ll[3] = { 0.0, 0.0, 0 }; // Ve, Vn, Vup
-	double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw 
-	double coords[3] = { fi, lam, h };
-
-	double f_ll[3] = { 0, 0, 0 };
-	double w_ll[3] = { 0, 0, 0 };
-};
-
 struct GraphData {
 	GraphData() { 
 		time.reserve(maxSize);
@@ -67,6 +57,13 @@ struct GraphData {
 	std::vector<double> fi;
 	std::vector<double> lam;
 	std::vector<double> h;
+};
+
+struct Data {
+	double time;
+	double v_ll[3] = { 0.0, 0.0, 0 }; // Ve, Vn, Vup
+	double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw
+	double coords[3] = { fi, lam, h };
 };
 
 void initGnuplot(FILE*& gp)
@@ -188,7 +185,6 @@ void calcRpy(const double* Cb_ll, double* rpy)
 void navigationAlgorithm(double* v_ll, double* rpy, double* coords)
 {
 	double f_ll[3] = { 0, 0, 0 };
-	double w_ll[3] = { 0, 0, 0 };
 
 	double sin_fi = sin(coords[0]);
 	double cos_fi = cos(coords[0]);
@@ -223,10 +219,10 @@ void navigationAlgorithm(double* v_ll, double* rpy, double* coords)
 
 	coords[0] += (v_ll[1] / (R_fi + coords[2])) * d_time;
 	coords[1] += (v_ll[0] / ((R_lam + coords[2]) * cos_fi)) * d_time;
-
+	coords[2] += v_ll[2] * d_time;
 }
 
-void saveData(GraphData& data, double time, double* rpy, double* v_ll, double* coords)
+void saveData(GraphData& data, double time, double* rpy, double* v_ll, double* coords, bool isEtalon)
 {
 	data.time.push_back(time);
 	data.roll.push_back(rpy[0]);
@@ -234,17 +230,16 @@ void saveData(GraphData& data, double time, double* rpy, double* v_ll, double* c
 	data.yaw.push_back(rpy[2]);
 	data.v_e.push_back(v_ll[0]);
 	data.v_n.push_back(v_ll[1]);
-	data.fi.push_back(coords[0]);
-	data.lam.push_back(coords[1]);
+	data.fi.push_back(isEtalon ? coords[0] : coords[0] * rad2Deg);
+	data.lam.push_back(isEtalon ? coords[1] : coords[1] * rad2Deg);
 	data.h.push_back(coords[2]);
 }
 
 int main()
 {
-	//initGnuplot(gp);
-
 	GraphData etalon, calc;
-	
+	Data etData, calcData;
+
 	std::ifstream in("Ref_Data_200Hz.txt");
 	if (!in.is_open()) {
 		std::cout << "Cannot open file Ref_Data_200Hz.txt" << std::endl;
@@ -254,9 +249,9 @@ int main()
 	int it = 0;
 	while (!in.eof()) {
 		double time;
-		double v_ll[3] = { 0.0, 0.0, 0 }; // Ve, Vn, Vup
-		double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw
-		double coords[3] = { fi, lam, h };
+		// double v_ll[3] = { 0.0, 0.0, 0 }; // Ve, Vn, Vup
+		// double rpy[3] = { 0, 0, 0 }; // roll, pitch, yaw
+		// double coords[3] = { fi, lam, h };
 
 		in >> time;
 		in >> w_b[0] >> w_b[1] >> w_b[2] >> f_b[0] >> f_b[1] >> f_b[2];
@@ -264,14 +259,14 @@ int main()
 		for (int i = 0; i < 3; ++i)
 			w_b[i] *= deg2Rad;
 
-		in >> rpy[0] >> rpy[1] >> rpy[2] >> v_ll[0] >> v_ll[1];
-		in >> coords[0] >> coords[1] >> coords[2];
+		in >> etData.rpy[0] >> etData.rpy[1] >> etData.rpy[2] >> etData.v_ll[0] >> etData.v_ll[1];
+		in >> etData.coords[0] >> etData.coords[1] >> etData.coords[2];
 
-		saveData(etalon, time, rpy, v_ll, coords);
+		saveData(etalon, time, etData.rpy, etData.v_ll, etData.coords, true);
 
-		navigationAlgorithm(v_ll, rpy, coords);
+		navigationAlgorithm(calcData.v_ll, calcData.rpy, calcData.coords);
 
-		saveData(calc, time, rpy, v_ll, coords);
+		saveData(calc, time, calcData.rpy, calcData.v_ll, calcData.coords, false);
 
 		if (it++ > etalon.maxSize)
 			break;
